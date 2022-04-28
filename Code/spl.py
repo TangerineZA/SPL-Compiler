@@ -111,8 +111,10 @@ NT_UNOP = 'UnOp'
 NT_BINOP = 'BinOp'
 NT_DEC = 'Dec'
 NT_VARDECL = 'VarDecl'
+NT_KEYWORD = 'Keyword'
 
 TYP_WORDS = ['num', 'bool', 'string']
+BINOP_WORDS = ['and', 'or', 'eq', 'larger', 'add', 'sub', 'mult']
 
 class Node:
     # Node class contains:
@@ -141,15 +143,25 @@ class Parser:
         if self.token_index < len(self.tokens):
             self.current_token = self.tokens[self.token_index]
 
-    def TYP(self):
+    def Keyword(self):
+        # Leaf node
         token = self.current_token
+        if token.type == TT_KEYWORD:
+            self.advance()
+            return Node(self.numNodes, NT_KEYWORD, token)
+        else:
+            self.parser_error()
 
+    def TYP(self):
+        # Leaf node
+        token = self.current_token
         if token.type == TT_KEYWORD and token.contents in TYP_WORDS:
             self.advance()
             self.numNodes += 1
             return Node(self.numNodes, NT_TYP, token)
 
     def Var(self):
+        # Leaf node
         token = self.current_token
         if token.type == TT_USERDEFINEDNAME:
             self.advance()
@@ -157,19 +169,24 @@ class Parser:
             return Node(self.numNodes, NT_VAR, token)
 
     def Const(self):
+        # Leaf node
         token = self.current_token
         if token.type in (TT_NUMBER, TT_SHORTSTRING) or (token.type == TT_KEYWORD and token.contents in BOOLEAN_WORDS):
             self.advance()
             self.numNodes += 1
             return Node(self.numNodes, NT_TYP, token)
 
+    # TODO: make sure that all leaves (including KEYWORDS!) are added to the parsing tree in declarations
     def Dec(self):
-        # branching based on two possible Dec types:
+        # Compound node
+
+        # Branching based on two possible Dec types:
         # 1 - arr $TYP[$Const] $Var
         # 2 - $TYP $Var
 
-        children = []
+        # Children structure: TODO note children structure
 
+        children = []
         if self.current_token.type == TT_KEYWORD and self.current_token.contents == 'arr':
             self.advance()
             children.append(self.TYP())
@@ -179,27 +196,50 @@ class Parser:
                 if self.current_token.type == TT_RSQUAREBRACKET:
                     self.advance()
                     children.append(self.Var())
+                    return Node(self.numNodes.NT_DEC, children)
                 else:
                     self.parser_error()
             else:
                 self.parser_error()
-
         elif self.current_token.type == TT_KEYWORD and self.current_token.contents in TYP_WORDS:
-
             children.append(self.TYP())
             children.append(self.Var())
-
-        return Node(self.numNodes. NT_DEC, children)
-
-    def SPLProgrm(self):
-
-        pass
+        else:
+            self.parser_error()
 
     def VarDecl(self):
-
         pass
 
     def BinOp(self):
+        # Compound node
+
+        # No branching
+
+        # Children structure:
+        # Keyword leaf node - indicating which binary operation is occurring
+        # Expression child node for first argument
+        # Expression child node for second argument
+
+        children = []
+        if self.current_token.type == TT_KEYWORD and self.current_token.contents in BINOP_WORDS:
+            children.append(self.Keyword())
+            if self.current_token.type == TT_LBRACKET:
+                self.advance()
+                children.append(self.Expr())
+                if self.current_token.type == TT_COMMA:
+                    self.advance()
+                    children.append(self.Expr())
+                    if self.current_token.type == TT_RSQUAREBRACKET:
+                        return Node(self.numNodes, NT_BINOP, children)
+                    else:
+                        self.parser_error()
+                else:
+                    self.parser_error()
+            else:
+                self.parser_error()
+        else:
+            self.parser_error()
+
         pass
 
     def UnOp(self):
@@ -218,6 +258,7 @@ class Parser:
         pass
 
     def Expr(self):
+
         pass
 
     def LHS(self):
