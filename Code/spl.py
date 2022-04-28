@@ -165,16 +165,9 @@ class Parser:
 
     def Dec(self):
         children = []
-        token = self.current_token
-        if token.type == TT_KEYWORD and token.contents in TYP_WORDS:
-            children.append(Node(self.numNodes, NT_TYP, token))
-            self.advance()
-            token = self.current_token
-        if token.type == TT_USERDEFINEDNAME:
-            children.append(Node(self.numNodes, NT_VAR, token))
-            self.advance()
-            self.numNodes += 1
-            return Node(self.numNodes, NT_DEC, children)
+        children.append(self.TYP())
+        children.append(self.Var())
+        return Node(self.numNodes. NT_DEC, children)
 
     def SPLProgrm(self):
 
