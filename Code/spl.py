@@ -164,9 +164,31 @@ class Parser:
             return Node(self.numNodes, NT_TYP, token)
 
     def Dec(self):
+        # branching based on two possible Dec types:
+        # 1 - arr $TYP[$Const] $Var
+        # 2 - $TYP $Var
+
         children = []
-        children.append(self.TYP())
-        children.append(self.Var())
+
+        if self.current_token.type == TT_KEYWORD and self.current_token.contents == 'arr':
+            self.advance()
+            children.append(self.TYP())
+            if self.current_token.type == TT_LSQUAREBRACKET:
+                self.advance()
+                children.append(self.Const())
+                if self.current_token.type == TT_RSQUAREBRACKET:
+                    self.advance()
+                    children.append(self.Var())
+                else:
+                    self.parser_error()
+            else:
+                self.parser_error()
+
+        elif self.current_token.type == TT_KEYWORD and self.current_token.contents in TYP_WORDS:
+
+            children.append(self.TYP())
+            children.append(self.Var())
+
         return Node(self.numNodes. NT_DEC, children)
 
     def SPLProgrm(self):
@@ -207,7 +229,9 @@ class Parser:
     def Alternat(self):
         pass
 
-
+    def parser_error(self):
+        print('Parser Error!')
+        #TODO: fill out with descriptive error message
 
 
 class Error:
