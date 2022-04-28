@@ -110,6 +110,7 @@ NT_BINOP = 'BinOp'
 NT_DEC = 'Dec'
 NT_VARDECL = 'VarDecl'
 NT_KEYWORD = 'Keyword'
+NT_USERDEFINEDNAME = 'UserDefinedName'
 
 TYP_WORDS = ['num', 'bool', 'string']
 BINOP_WORDS = ['and', 'or', 'eq', 'larger', 'add', 'sub', 'mult']
@@ -141,11 +142,14 @@ class Parser:
         if self.token_index < len(self.tokens):
             self.current_token = self.tokens[self.token_index]
 
+    # TODO: contemplate making all leaf nodes into one switch-case function
+
     def Keyword(self):
         # Leaf node
         token = self.current_token
         if token.type == TT_KEYWORD:
             self.advance()
+            self.numNodes += 1
             return Node(self.numNodes, NT_KEYWORD, token)
         else:
             self.parser_error()
@@ -272,14 +276,36 @@ class Parser:
         else:
             self.parser_error()
 
-    def Const(self):
-        pass
-
     def Field(self):
-        pass
+        # Compound node
 
-    def Var(self):
-        pass
+        # Branching based on Variable or Constant or just name
+        # 1 - userDefinedName[Var]
+        # 2 - userDefinedName[Const]
+
+        # Children structure:
+        # Name leaf node
+        # Var child node if branch 1
+        # Const child node if branch 2
+
+        children = []
+        if self.current_token.type == TT_USERDEFINEDNAME:
+            self.numNodes += 1
+            # TODO: not sure about user defined name implementation here
+            children.append(Node(self.numNodes, NT_USERDEFINEDNAME, self.current_token))
+            self.advance()
+            if self.current_token.type == TT_LSQUAREBRACKET:
+                children.append(self.Var())
+                if self.current_token.type == TT_RSQUAREBRACKET:
+                    self.numNodes += 1
+                    return Node(self.numNodes, NT_FIELD, children)
+                else:
+                    self.parser_error()
+            else:
+                self.parser_error()
+
+        else:
+            self.parser_error()
 
     def PCall(self):
         pass
