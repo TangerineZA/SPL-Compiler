@@ -15,8 +15,6 @@ TT_COMMA = 'COMMA'
 TT_SEMICOLON = 'SEMICOLON'
 TT_KEYWORD = 'KEYWORD'
 
-# TODO: add TT_BOOL
-
 WHITESPACES = ' \t\n'
 KEYWORDS = ['arr', 'sub', 'mult', 'add', 'larger', 'eq', 'or', 'and', 'not',
             'input', 'true', 'false', 'if', 'then', 'else', 'proc', 'main',
@@ -196,6 +194,7 @@ class Parser:
                 if self.current_token.type == TT_RSQUAREBRACKET:
                     self.advance()
                     children.append(self.Var())
+                    self.numNodes += 1
                     return Node(self.numNodes.NT_DEC, children)
                 else:
                     self.parser_error()
@@ -230,6 +229,7 @@ class Parser:
                     self.advance()
                     children.append(self.Expr())
                     if self.current_token.type == TT_RSQUAREBRACKET:
+                        self.numNodes += 1
                         return Node(self.numNodes, NT_BINOP, children)
                     else:
                         self.parser_error()
@@ -243,7 +243,34 @@ class Parser:
         pass
 
     def UnOp(self):
-        pass
+        # Compound node
+
+        # Branching based on which operator
+        # 1 - input(Var)
+        # 2 - not(Expr)
+
+        # Children structure:
+        # Keyword leaf node
+        # Var child node if branch 1
+        # Expr child node if branch 2
+
+        children = []
+        if self.current_token.type == TT_KEYWORD:
+            # Save the operator for branching
+            operator = self.current_token.contents
+            children.append(self.Keyword())
+            if self.current_token.type == TT_LBRACKET:
+                self.advance()
+                if operator == 'input':         # Branch 1
+                    children.append(self.Var())
+                elif operator == 'not':         # Branch 2
+                    children.append(self.Expr())
+                self.numNodes += 1
+                return Node(self.numNodes, NT_UNOP, children)
+            else:
+                self.parser_error()
+        else:
+            self.parser_error()
 
     def Const(self):
         pass
