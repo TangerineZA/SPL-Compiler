@@ -1,7 +1,7 @@
 # Imports
 import re
 
-# Tokens
+# Token type constants
 TT_NUMBER = 'NUMBER'
 TT_USERDEFINEDNAME = 'USERDEFINEDNAME'
 TT_SHORTSTRING = 'SHORTSTRING'
@@ -15,6 +15,7 @@ TT_COMMA = 'COMMA'
 TT_SEMICOLON = 'SEMICOLON'
 TT_KEYWORD = 'KEYWORD'
 
+# Token convenience constants
 WHITESPACES = ' \t\n'
 KEYWORDS = ['arr', 'sub', 'mult', 'add', 'larger', 'eq', 'or', 'and', 'not',
             'input', 'true', 'false', 'if', 'then', 'else', 'proc', 'main',
@@ -26,6 +27,12 @@ BOOLEAN_WORDS = ['true', 'false']
 
 
 class Token:
+
+    # The Token class uses the recommended tuple to contain three pieces of information:
+    # 1 - the type of token
+    # 2 - the contents of the token (i.e., the actual word)
+    # 3 - the ID of the token for unique identification purposes
+
     def __init__(self, token_type, token_id, contents):
         self.type = token_type
         self.contents = contents
@@ -93,7 +100,7 @@ class Lexer:
         return True
 
 
-# Nodes
+# Node type constants
 NT_SPLPROGRAM = 'SPLProgram'
 NT_PROCDEFS = 'ProcedureDefinitions'
 NT_ALGORITHM = 'Algorithm'
@@ -112,6 +119,7 @@ NT_VARDECL = 'VarDecl'
 NT_KEYWORD = 'Keyword'
 NT_USERDEFINEDNAME = 'UserDefinedName'
 
+# Node convenience constants
 TYP_WORDS = ['num', 'bool', 'string']
 BINOP_WORDS = ['and', 'or', 'eq', 'larger', 'add', 'sub', 'mult']
 
@@ -212,7 +220,44 @@ class Parser:
             self.parser_error()
 
     def VarDecl(self):
-        pass
+        # Compound node
+
+        # Branching because nullable
+        # 1 - Dec ; VarDecl
+        # 2 - nothing
+
+        # Children structure:
+        # [1] - Declaration
+        # [2] - Variable Declaration
+
+        children = []
+        dec = self.Dec()
+        if dec is not None:
+            children.append(dec)
+            if self.current_token.type == TT_SEMICOLON:
+                self.advance()
+                vardecl = self.VarDecl()
+                if vardecl is not None:
+                    if vardecl == 0:
+                        self.num_nodes += 1
+                        return Node(self.num_nodes, NT_VARDECL, children)
+                    else:
+                        children.append(vardecl)
+                        # Have to keep recurring until a zero is given indicating the end of the variable declarations
+                        #
+                        # Will result in children[] having nested VarDecl nodes -
+                        # acceptable for our purposes thus far though
+                        self.VarDecl()
+                else:
+                    self.parser_error()
+                    return None
+            else:
+                self.parser_error()
+                return None
+        else:
+            # Sign that something else is here - thus have to pass
+            # TODO - look at this logic again when less tired
+            return 0
 
     def BinOp(self):
         # Compound node
@@ -422,9 +467,39 @@ class Parser:
             return None
 
     def Loop(self):
+        # TODO
         pass
 
     def Alternat(self):
+        # TODO
+        pass
+
+    def Branch(self):
+        # TODO
+        pass
+
+    def Assign(self):
+        # TODO
+        pass
+
+    def Instr(self):
+        # TODO
+        pass
+
+    def Algorithm(self):
+        # TODO
+        pass
+
+    def PD(self):
+        # TODO
+        pass
+
+    def ProcDefs(self):
+        # TODO
+        pass
+
+    def SPLProgr(self):
+        # TODO
         pass
 
     def parser_error(self):
