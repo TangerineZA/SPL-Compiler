@@ -303,7 +303,6 @@ class Parser:
                     self.parser_error()
             else:
                 self.parser_error()
-
         else:
             self.parser_error()
 
@@ -311,11 +310,83 @@ class Parser:
         pass
 
     def Expr(self):
+        # Compound node
 
-        pass
+        # Branching based on which node type the expression consists of
+        # 1 - Const
+        # 2 - Var
+        # 3 - Field
+        # 4 - UnOp
+        # 5 - BinOp
+
+        # Children structure:
+        # Merely a single child consisting of the node making up this expression
+
+        children = []
+
+        const = self.Const()
+        if const is not None:
+            children.append(const)
+            self.numNodes += 1
+            return Node(self.numNodes, NT_EXPR, children)
+        else:
+            var = self.Var()
+            if var is not None:
+                children.append(var)
+                self.numNodes += 1
+                return Node(self.numNodes, NT_EXPR, children)
+            else:
+                field = self.Field()
+                if field is not None:
+                    children.append(field)
+                    self.numNodes += 1
+                    return Node(self.numNodes, NT_EXPR, children)
+                else:
+                    unop = self.UnOp()
+                    if unop is not None:
+                        children.append(unop)
+                        self.numNodes += 1
+                        return Node(self.numNodes, NT_EXPR, children)
+                    else:
+                        binop = self.BinOp()
+                        if binop is not None:
+                            children.append(binop)
+                            self.numNodes += 1
+                            return Node(self.numNodes, NT_EXPR, children)
+                        else:
+                            self.parser_error()
 
     def LHS(self):
-        pass
+        # TODO: requires testing
+
+        # Compound node
+
+        # Branching based on types
+        # 1 - output
+        # 2 - Field
+        # 3 - Var
+
+        # Children structure:
+        # If branch 1: simply the keyword token
+        # If branch 2: the Field node
+        # If branch 3: the Var node
+
+        token = self.current_token
+        field = self.Field()
+        var = self.Var()
+        children = []
+        if token.type == TT_KEYWORD and token.contents == 'output':
+            self.numNodes += 1
+            self.advance()
+            return Node(self.numNodes, NT_LHS, token)
+        elif field != None:
+            self.numNodes += 1
+            return Node(self.numNodes, NT_LHS, children)
+        elif var != None:
+            self.numNodes += 1
+            return Node(self.numNodes, NT_LHS, children)
+        else:
+            self.parser_error()
 
     def Loop(self):
         pass
