@@ -1,4 +1,5 @@
 # Imports
+import sys
 import re
 
 # Token type constants
@@ -502,6 +503,9 @@ class Parser:
         # TODO
         pass
 
+    def run_parser(self):
+        pass
+
     def parser_error(self):
         print('Parser Error!')
         # TODO: fill out with descriptive error message
@@ -515,3 +519,42 @@ class Error:
     def as_string(self):
         result = f'{self.error_name}: {self.details}'
         return result
+
+
+# File reading functionality implementation
+class File_Reader:
+    def __init__(self, filename):
+        self.file = open(filename, "r")
+
+    def close_file(self):
+        self.file.close()
+
+    def get_lines_list(self):
+        # Returns a list of lines
+        return self.file.readlines()
+
+    def get_all_text(self):
+        # Returns full text
+        list = self.file.readlines()
+        full_text = ''.join(list)
+        return full_text
+
+class Runner:
+    def __init__(self):
+        self.file_reader = File_Reader(sys.argv[1])
+        self.lexer = None
+        self.parser = None
+
+    def run_lexer(self):
+        self.lexer = Lexer(self.file_reader.get_all_text())
+        self.lexer.run_lexer()
+        print('/n LEXER COMPLETED')
+
+    def run_parser_and_lexer(self):
+        self.lexer = Lexer(self.file_reader.get_all_text())
+        tokens = self.lexer.run_lexer()
+        print('/n LEXER COMPLETED!')
+        self.parser = Parser(tokens)
+        self.parser.run_parser()
+        print('/n PARSER COMPLETED')
+
