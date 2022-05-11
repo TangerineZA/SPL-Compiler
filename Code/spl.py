@@ -1,6 +1,7 @@
 # Imports
 import sys
 import re
+import copy
 
 # Token type constants
 TT_NUMBER = 'NUMBER'
@@ -105,6 +106,7 @@ class Lexer:
 NT_SPLPROGRAM = 'SPLProgram'
 NT_PROCDEFS = 'ProcedureDefinitions'
 NT_ALGORITHM = 'Algorithm'
+NT_ALTERNAT = 'Alternat'
 NT_TYP = 'TYP'
 NT_VAR = 'Var'
 NT_CONST = 'Const'
@@ -119,6 +121,8 @@ NT_DEC = 'Dec'
 NT_VARDECL = 'VarDecl'
 NT_KEYWORD = 'Keyword'
 NT_USERDEFINEDNAME = 'UserDefinedName'
+NT_PD = 'PD'
+NT_INSTR = 'Instruction'
 
 # Node convenience constants
 TYP_WORDS = ['num', 'bool', 'string']
@@ -469,46 +473,254 @@ class Parser:
 
     def Loop(self):
         # TODO
-        pass
+
+        # TODO 2: electric boogaloo
+        # make self.advance() count where we are in token list for error detail purposes -
+        # so we can print out where error occurred in self.parser_error()
+
+        # Compound node
+
+        # Branching:
+        # 1 - do { Algorithm } until (Expr)
+        # 2 -  while (Expr) do { Algorithm }
+
+        # Children:
+        # if branch 1:
+        # Keyword, Algorithm, Keyword, Expr
+        # if branch 2:
+        # Keyword, Expr, Keyword, Algorithm
+
+        children = []
+
+        # Branch 1
+        if self.current_token.type == TT_KEYWORD and self.current_token.contents == 'do':
+            children.append(self.Keyword())
+            if self.current_token.type == TT_LBRACE:
+                self.advance()
+                children.append(self.Algorithm())
+                if self.current_token.type == TT_RBRACE:
+                    self.advance()
+                    if self.current_token.type == TT_KEYWORD and self.current_token.contents == 'until':
+                        children.append(self.Keyword())
+                        if self.current_token.type == TT_RBRACKET:
+                            self.advance()
+                            children.append(self.Expr())
+                            if self.current_token.type == TT_LBRACKET:
+                                self.num_nodes += 1
+                                return Node(self.num_nodes, NT_LOOP, children)
+        elif True:
+            if self.current_token.type == TT_KEYWORD and self.current_token.contents == 'while':
+                children.append(self.Keyword())
+                if self.current_token.type == TT_LBRACKET:
+                    self.advance()
+                    children.append(self.Expr())
+                    if self.current_token.type == TT_RBRACKET:
+                        self.advance()
+                        if self.current_token.type == TT_KEYWORD and self.current_token.contents == 'do':
+                            children.append(self.Keyword())
+                            if self.current_token.type == TT_LBRACE:
+                                self.advance()
+                                children.append(self.Algorithm())
+                                if self.current_token.type == TT_RBRACE:
+                                    self.num_nodes += 1
+                                    return Node(self.num_nodes, NT_LOOP, children)
+
+        # lazy approach to error handling is okay here - if not returning, will throw error,
+        # i.e. will reach this parser_error() at the bottom
+
+        self.parser_error()
 
     def Alternat(self):
-        # TODO
-        pass
+        # Compound node
+
+        # Branch on nullable
+
+        # Children:
+        # Keyword Algorithm
+
+        children = []
+
+        if self.current_token.type == TT_KEYWORD and self.current_token.contents == 'else':
+            children.append(self.Keyword())
+            if self.current_token.type == TT_LBRACE:
+                self.advance()
+                children.append(self.Algorithm())  # lazy!! don't be like this! do error checking!
+                if self.current_token.type == TT_RBRACE:
+                    self.num_nodes += 1
+                    return Node(self.num_nodes, NT_ALTERNAT, children)
+            self.parser_error()
+        else:
+            pass
 
     def Branch(self):
-        # TODO
-        pass
+        # Compound node
+
+        # No branching
+
+        # Children:
+        # Keyword Expr Keyword Algorithm Alternat
+
+        children = []
+
+        if self.current_token.type == TT_KEYWORD and self.current_token.contents == 'if':
+            children.append(self.Keyword())
+            if self.current_token.type == TT_LBRACKET:
+                self.advance()
+                if self.current_token.type == TT_RBRACKET:
+                    self.advance()
+                    if self.current_token.type == TT_KEYWORD and self.current_token.contents == 'then':
+                        children.append(self.Keyword())
+                        if self.current_token.type == TT_LBRACE:
+                            self.advance()
+                            children.append(self.Algorithm())
+                            if self.current_token.type == TT_RBRACE:
+                                self.advance()
+                                children.append(self.Alternat())
+
+        self.parser_error()
 
     def Assign(self):
-        # TODO
+        # Compound node
+
+        # No branching
+
+        # Children:
+        # LHS Expr
+
+        children = []
+
+        lhs = self.LHS()
+        if lhs is not None:
+            children.append(lhs)
+            # TODO add assignment operator to lexer and then utilise here
+
+
         pass
 
     def Instr(self):
-        # TODO
-        pass
+        # Compound node
+
+        # Branching:
+        # 1 - Assign
+        # 2 - Branch
+        # 3 - Loop
+        # 4 - PCall
+
+        # Children:
+        # Whichever branch is taken is the only child
+        # Can return None for ease of working Algorithm
+
+        children = []
+
+        if self.current_token.type == TT_USERDEFINEDNAME or (self.current_token.type == TT_KEYWORD and self.current_token.contents == 'output'):
+            children.append(self.Assign())
+            self.num_nodes += 1
+            return Node(self.num_nodes, NT_INSTR, children)
+        elif self.current_token.type == TT_KEYWORD and self.current_token.contents == 'if':
+            children.append(self.Branch())
+            self.num_nodes += 1
+            return Node(self.num_nodes, NT_INSTR, children)
+        elif self.current_token.type == TT_KEYWORD and self.current_token.contents in ('do', 'loop'):
+            children.append(self.Loop())
+            self.num_nodes += 1
+            return Node(self.num_nodes, NT_INSTR, children)
+        elif self.current_token.type == TT_KEYWORD and self.current_token.contents == 'call':
+            children.append(self.PCall())
+            self.num_nodes += 1
+            return Node(self.num_nodes, NT_INSTR, children)
+
+        self.parser_error()
 
     def Algorithm(self):
+        # Compound
+
+        # Branching based on nullable
+
+        # Children:
+        # Instr Algorithm
+
+        children = []
+
         # TODO
+
         pass
 
     def PD(self):
-        # TODO
-        pass
+        # Compound
+
+        # No branching - just:
+        # 1 - PD → proc userDefinedName { ProcDefs Algorithm return ; VarDecl }
+
+        # Children:
+        # Keyword Var ProcDefs Algorithm Keyword VarDecl
+
+        children = []
+
+        if self.current_token.type == TT_KEYWORD and self.current_token.contents == 'proc':
+            children.append(self.Keyword())
+            if self.current_token.type == TT_USERDEFINEDNAME:
+                children.append(self.Var())
+                if self.current_token.type == TT_LBRACE:
+                    self.advance()
+                    children.append(self.ProcDefs())
+                    children.append(self.Algorithm())
+                    if self.current_token.type == TT_KEYWORD and self.current_token.contents == 'return':
+                        children.append(self.Keyword())
+                        if self.current_token.type == TT_SEMICOLON:
+                            self.advance()
+                            children.append(self.VarDecl())
+                            if self.current_token.type == TT_RBRACE:
+                                return Node(self.num_nodes, NT_PD, children)
+
+        # TODO - why parser error not working here?
+
 
     def ProcDefs(self):
-        # TODO
-        pass
+        # Compound
+
+        # Branching on nullable
+
+        # Children:
+        # PD ProcDefs
+
+        tokens_copy = self.get_fresh_token_list_copy()
+        current_token_copy = tokens_copy[self.token_index]
+        if current_token_copy.type != TT_KEYWORD or current_token_copy.contents != 'proc':
+            pass
+
+        children = []
+
+        children.append(self.PD())
+        if self.current_token.type == TT_COMMA:
+            self.advance()
+            children.append(self.ProcDefs())
+            self.num_nodes += 1
+            return Node(self.num_nodes, NT_PROCDEFS, children)
+
+        self.parser_error()
 
     def SPLProgr(self):
+        # Compound
+
+        # No branching - only:
+        # ProcDefs main { Algorithm halt ; VarDecl }
+
+        # Children:
+        # ProcDefs Keyword Algorithm Keyword VarDecl
         # TODO
         pass
 
     def run_parser(self):
+        # TODO
         pass
 
     def parser_error(self):
         print('Parser Error!')
         # TODO: fill out with descriptive error message
+
+    def get_fresh_token_list_copy(self):
+        deep_copy = copy.deepcopy(self.tokens)
+        return deep_copy
 
 
 class Error:
@@ -539,6 +751,7 @@ class File_Reader:
         full_text = ''.join(list)
         return full_text
 
+
 class Runner:
     def __init__(self):
         self.file_reader = File_Reader(sys.argv[1])
@@ -557,4 +770,3 @@ class Runner:
         self.parser = Parser(tokens)
         self.parser.run_parser()
         print('/n PARSER COMPLETED')
-
