@@ -204,11 +204,13 @@ class Parser:
         # 1 - arr $TYP[$Const] $Var
         # 2 - $TYP $Var
 
-        # Children structure: TODO note children structure
+        # Children structure:
+        # 1 - Keyword TYP Const Var
+        # 2 - TYP Var
 
         children = []
         if self.current_token.type == TT_KEYWORD and self.current_token.contents == 'arr':
-            self.advance()
+            children.append(self.Keyword())
             children.append(self.TYP())
             if self.current_token.type == TT_LSQUAREBRACKET:
                 self.advance()
@@ -478,10 +480,6 @@ class Parser:
     def Loop(self):
         # TODO
 
-        # TODO 2: electric boogaloo
-        # make self.advance() count where we are in token list for error detail purposes -
-        # so we can print out where error occurred in self.parser_error()
-
         # Compound node
 
         # Branching:
@@ -649,7 +647,15 @@ class Parser:
 
         children = []
 
-        # TODO
+        if self.current_token.type == TT_KEYWORD:
+            # So if there is likely to be an instruction type
+            if self.current_token.contents in ('do', 'loop', 'call', 'if'):
+                children.append(self.Instr())
+                if self.current_token.type == TT_SEMICOLON:
+                    self.advance()
+                    children.append(self.Algorithm())
+                    self.num_nodes += 1
+                    return Node(self.num_nodes, NT_ALGORITHM, children)
 
         pass
 
