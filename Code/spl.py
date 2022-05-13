@@ -16,6 +16,7 @@ TT_RBRACKET = 'RBRACKET'
 TT_COMMA = 'COMMA'
 TT_SEMICOLON = 'SEMICOLON'
 TT_KEYWORD = 'KEYWORD'
+TT_ASSIGNMENTOPERATOR = 'ASSIGNMENT_OPERATOR'
 
 # Token convenience constants
 WHITESPACES = ' \t\n'
@@ -76,6 +77,8 @@ class Lexer:
                 self.tokens.append(Token(TT_LSQUAREBRACKET, len(self.tokens), '['))
             elif current_char == ']':
                 self.tokens.append(Token(TT_RSQUAREBRACKET, len(self.tokens), ']'))
+            elif current_char == ':' and full_word[x+1] == '=':
+                self.tokens.append(Token(TT_ASSIGNMENTOPERATOR, len(self.tokens), ':='))
             elif full_word in KEYWORDS:
                 self.tokens.append(Token(TT_KEYWORD, len(self.tokens), full_word))
             # Assume there's more word to add and check
@@ -123,6 +126,7 @@ NT_KEYWORD = 'Keyword'
 NT_USERDEFINEDNAME = 'UserDefinedName'
 NT_PD = 'PD'
 NT_INSTR = 'Instruction'
+NT_ASSIGN = 'Assignment'
 
 # Node convenience constants
 TYP_WORDS = ['num', 'bool', 'string']
@@ -589,13 +593,17 @@ class Parser:
 
         children = []
 
-        lhs = self.LHS()
-        if lhs is not None:
-            children.append(lhs)
-            # TODO add assignment operator to lexer and then utilise here
+        if self.current_token.type == TT_USERDEFINEDNAME:
+            children.append(self.Var())
+            self.num_nodes += 1
+            return Node(self.num_nodes, NT_ASSIGN, children)
+        elif self.current_token.type == TT_KEYWORD and self.current_token.contents == 'output':
+            children.append(self.Keyword())
+            self.num_nodes += 1
+            return Node(self.num_nodes, NT_ASSIGN, children)
 
-
-        pass
+        self.parser_error()
+        return None
 
     def Instr(self):
         # Compound node
@@ -672,7 +680,7 @@ class Parser:
                             if self.current_token.type == TT_RBRACE:
                                 return Node(self.num_nodes, NT_PD, children)
 
-        # TODO - why parser error not working here?
+        self.parser_error()
 
 
     def ProcDefs(self):
@@ -707,16 +715,50 @@ class Parser:
 
         # Children:
         # ProcDefs Keyword Algorithm Keyword VarDecl
-        # TODO
-        pass
+
+        children = []
+
+        children.append(self.ProcDefs())
+        if self.current_token.type == TT_KEYWORD and self.current_token.contents == 'main':
+            children.append(self.Keyword())
+            if self.current_token.type == TT_LBRACE:
+                self.advance()
+                children.append(self.Algorithm())
+                if self.current_token.type == TT_KEYWORD and self.current_token.contents == 'halt':
+                    self.advance()
+                    if self.current_token.type == TT_SEMICOLON:
+                        self.advance()
+                        children.append(self.VarDecl())
+                        if self.current_token.type == TT_RBRACE:
+                            self.num_nodes += 1
+                            return Node(self.num_nodes, NT_SPLPROGRAM, children)
+
+        self.parser_error()
 
     def run_parser(self):
-        # TODO
-        pass
+        # Runs recursive descent parser
 
-    def parser_error(self):
+        # Gets Node object of program and recursively steps down through each child node
+
+        # Returns program's Node object
+
+        program_node = self.SPLProgr()
+
+        print(program_node)
+
+        return program_node
+
+    def parser_error(self, node_type = None):
+        error_token = self.current_token
+        error_token_index = self.token_index
+
         print('Parser Error!')
-        # TODO: fill out with descriptive error message
+
+        print('Error occurred at token ' + error_token + '(token number ' + error_token_index + ')')
+
+        if node_type is not None:
+            print('Error occurred while trying to parse a node of type ' + node_type +
+                  ' and running into an unexpected token: ' + error_token)
 
     def get_fresh_token_list_copy(self):
         deep_copy = copy.deepcopy(self.tokens)
