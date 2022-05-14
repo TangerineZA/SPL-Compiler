@@ -51,7 +51,6 @@ class Token:
 class Lexer:
     def __init__(self, text):
         self.text = text
-        self.splitText = text.split()
         self.tokens = []
 
     def break_up(self, full_word):
@@ -93,7 +92,8 @@ class Lexer:
                 elif re.search(USER_DEFINED_NAME_REGEX, constructed_word) is not None:
                     self.tokens.append(Token(TT_USERDEFINEDNAME, len(self.tokens), constructed_word))
             else:
-                print("UNRECOGNISED WORD: " + full_word)
+                print('Lexer error!')
+                print('UNRECOGNISED WORD: ' + full_word)
                 return False
 
     def run_lexer(self):
@@ -161,6 +161,7 @@ class Parser:
             self.current_token = self.tokens[self.token_index]
 
     # TODO: contemplate making all leaf nodes into one switch-case function
+    # on second thoughts no - that would cause more refactoring than I'm keen to do
 
     def Keyword(self):
         # Leaf node
@@ -171,6 +172,14 @@ class Parser:
             return Node(self.num_nodes, NT_KEYWORD, token)
         else:
             self.parser_error()
+
+    def UserDefinedName(self):
+        # Leaf node
+        token = self.current_token
+        if token.type == TT_USERDEFINEDNAME:
+            self.advance()
+            self.num_nodes += 1
+            return Node(self.num_nodes, NT_USERDEFINEDNAME, token)
 
     def TYP(self):
         # Leaf node
@@ -196,7 +205,6 @@ class Parser:
             self.num_nodes += 1
             return Node(self.num_nodes, NT_TYP, token)
 
-    # TODO: make sure that all leaves (including KEYWORDS!) are added to the parsing tree in declarations
     def Dec(self):
         # Compound node
 
@@ -292,20 +300,9 @@ class Parser:
                     if self.current_token.type == TT_RSQUAREBRACKET:
                         self.num_nodes += 1
                         return Node(self.num_nodes, NT_BINOP, children)
-                    else:
-                        self.parser_error()
-                        return None
-                else:
-                    self.parser_error()
-                    return None
-            else:
-                self.parser_error()
-                return None
-        else:
-            self.parser_error()
-            return None
 
-        pass
+        self.parser_error()
+        return None
 
     def UnOp(self):
         # Compound node
@@ -353,8 +350,7 @@ class Parser:
         children = []
         if self.current_token.type == TT_USERDEFINEDNAME:
             self.num_nodes += 1
-            # TODO: not sure about user defined name implementation here
-            children.append(Node(self.num_nodes, NT_USERDEFINEDNAME, self.current_token))
+            children.append(self.UserDefinedName())
             self.advance()
             if self.current_token.type == TT_LSQUAREBRACKET:
                 children.append(self.Var())
@@ -478,8 +474,6 @@ class Parser:
             return None
 
     def Loop(self):
-        # TODO
-
         # Compound node
 
         # Branching:
@@ -531,6 +525,7 @@ class Parser:
         # i.e. will reach this parser_error() at the bottom
 
         self.parser_error()
+        return None
 
     def Alternat(self):
         # Compound node
