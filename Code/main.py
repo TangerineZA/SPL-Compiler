@@ -1,16 +1,22 @@
-# This is a sample Python script.
+# Main script
 
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+import spl
 
+lexer = None
+parser = None
+filereader = None
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
-
-
-# Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    print_hi('PyCharm')
+    print('SPL Compiler - David Walker - COS341 2022')
+    filename = input('Please input the name of the file you wish to examine:')
 
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+    filereader = spl.File_Reader(filename)
+    file_text = filereader.get_all_text()
+
+    lexer = spl.Lexer(file_text)
+    token_list = lexer.run_lexer()
+
+    parser = spl.Parser(token_list)
+    program_node = parser.run_parser()
+
+    print('End of Practical A scope!')

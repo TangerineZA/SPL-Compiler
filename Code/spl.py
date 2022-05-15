@@ -49,7 +49,7 @@ class Token:
 
 # Lexer
 class Lexer:
-    def __init__(self, text):
+    def __init__(self, text: str):
         self.text = text
         self.tokens = []
 
@@ -102,7 +102,7 @@ class Lexer:
             if not self.break_up(split_text[x]):
                 return False
         print(self.tokens)
-        return True
+        return self.tokens
 
 
 # Node type constants
@@ -148,7 +148,7 @@ class Node:
 
 
 class Parser:
-    def __init__(self, tokens):
+    def __init__(self, tokens: list):
         self.tokens = tokens
         self.token_index = -1
         self.current_token = None
@@ -779,7 +779,11 @@ class Error:
 # File reading functionality implementation
 class File_Reader:
     def __init__(self, filename):
-        self.file = open(filename, "r")
+        try:
+            self.file = open(filename, "r")
+        except:
+            print('File error! Check that you provided the correct filename!')
+            quit()
 
     def close_file(self):
         self.file.close()
