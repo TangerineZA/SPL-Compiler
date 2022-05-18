@@ -214,7 +214,7 @@ class Node:
         self.node_contents = node_contents
 
     def __repr__(self):
-        return f'{self.node_id}:{self.node_class}:{self.node_contents}'
+        return f'\n{self.node_id}:{self.node_class}:{self.node_contents}'
 
 
 class Parser:
@@ -232,7 +232,7 @@ class Parser:
             self.current_token = self.tokens[self.token_index]
 
     def Keyword(self):
-        print('Adding Keyword')
+        print('Adding Keyword: ' + self.current_token.contents)
         # Leaf node
         token = self.current_token
         if token.type == TT_KEYWORD:
@@ -305,15 +305,22 @@ class Parser:
                     self.num_nodes += 1
                     return Node(self.num_nodes, NT_DEC, children)
         elif self.current_token.type == TT_KEYWORD and self.current_token.contents in TYP_WORDS:
+            # print('Adding normal TYP VAR')
             children.append(self.TYP())
+            # print('Added TYP in Dec')
             children.append(self.Var())
+            # print('Added Var in Dec')
             self.num_nodes += 1
+            print('Exiting Dec')
             return Node(self.num_nodes, NT_DEC, children)
         else:
+            print('No type entered!')
             self.parser_error()
 
+    vardec_recursion_layer = -1
     def VarDecl(self):
-        print('Adding VarDecl')
+        self.vardec_recursion_layer += 1
+        # print('Adding VarDecl - current recursion layer = ' + self.vardec_recursion_layer.__str__())
         # Compound node
 
         # Branching because nullable
@@ -325,33 +332,22 @@ class Parser:
         # [2] - Variable Declaration
 
         children = []
+        if self.current_token.contents not in TYP_WORDS:
+            return None
+
         dec = self.Dec()
         if dec is not None:
+            # print('Appending Dec to VarDecl children')
             children.append(dec)
-            if self.current_token.type == TT_SEMICOLON:
-                self.advance()
-                vardecl = self.VarDecl()
-                if vardecl is not None:
-                    if vardecl == 0:
-                        self.num_nodes += 1
-                        return Node(self.num_nodes, NT_VARDECL, children)
-                    else:
-                        children.append(vardecl)
-                        # Have to keep recurring until a zero is given indicating the end of the variable declarations
-                        #
-                        # Will result in children[] having nested VarDecl nodes -
-                        # acceptable for our purposes thus far though
-                        self.VarDecl()
-                else:
-                    self.parser_error()
-                    return None
-            else:
-                self.parser_error()
-                return None
-        else:
-            # Sign that something else is here - thus have to pass
-            # TODO - look at this logic again when less tired
-            return 0
+            # print('Present token: ' + self.current_token.type + ': ' + self.current_token.contents)
+            if self.current_token.type == TT_KEYWORD and self.current_token.contents in TYP_WORDS:
+                print('Recursively adding more variable declarations...')
+                if self.current_token.contents in TYP_WORDS:
+                    children.append(self.VarDecl())
+                self.num_nodes += 1
+                # print('Exiting VarDecl via return of Node - exiting layer: ' + self.vardec_recursion_layer.__str__())
+                self.vardec_recursion_layer -= 1
+                return Node(self.num_nodes, NT_VARDECL, children)
 
     def BinOp(self):
         print('Adding BinOp')
@@ -658,7 +654,7 @@ class Parser:
         self.parser_error()
 
     def Assign(self):
-        print('Entered assignment')
+        print('Adding assignment')
 
         # Compound node
 
@@ -710,18 +706,22 @@ class Parser:
         if self.current_token.type == TT_USERDEFINEDNAME or (self.current_token.type == TT_KEYWORD and self.current_token.contents == 'output'):
             children.append(self.Assign())
             self.num_nodes += 1
+            print('Exiting instruction')
             return Node(self.num_nodes, NT_INSTR, children)
         elif self.current_token.type == TT_KEYWORD and self.current_token.contents == 'if':
             children.append(self.Branch())
             self.num_nodes += 1
+            print('Exiting instruction')
             return Node(self.num_nodes, NT_INSTR, children)
         elif self.current_token.type == TT_KEYWORD and self.current_token.contents in ('do', 'loop'):
             children.append(self.Loop())
             self.num_nodes += 1
+            print('Exiting instruction')
             return Node(self.num_nodes, NT_INSTR, children)
         elif self.current_token.type == TT_KEYWORD and self.current_token.contents == 'call':
             children.append(self.PCall())
             self.num_nodes += 1
+            print('Exiting instruction')
             return Node(self.num_nodes, NT_INSTR, children)
 
         self.parser_error()
@@ -747,15 +747,17 @@ class Parser:
                     self.num_nodes += 1
                     return Node(self.num_nodes, NT_ALGORITHM, children)
         else:
-            print('Algorithm is an assignment operation!')
+            print('Algorithm is assignment operation')
             children.append(self.Assign())
             self.num_nodes += 1
+            print('Exiting algorithm')
             return Node(self.num_nodes, NT_ALGORITHM, children)
 
         print('Algorithm null')
 
     def PD(self):
         print('Adding PD')
+        print('Current token: ' + self.current_token.type + ':' + self.current_token.contents)
         # Compound
 
         # No branching - just:
@@ -772,17 +774,26 @@ class Parser:
                 children.append(self.Var())
                 if self.current_token.type == TT_LBRACE:
                     self.advance()
+                    # print('PD adding own ProcDefs now')
                     children.append(self.ProcDefs())
+                    # print('PD ProcDefs done! Entering PD Algorithm')
                     children.append(self.Algorithm())
-                    print('ProcDefs and Algorithm done in PD... moving on to return value!')
+                    # print('ProcDefs and Algorithm done in PD... moving on to return value!')
                     if self.current_token.type == TT_KEYWORD and self.current_token.contents == 'return':
                         children.append(self.Keyword())
                         if self.current_token.type == TT_SEMICOLON:
                             self.advance()
                             children.append(self.VarDecl())
+                            # print('PD done with variable declarations')
+                            # print('Current token type: ' + self.current_token.type)
                             if self.current_token.type == TT_RBRACE:
+                                self.advance()
+                                self.num_nodes += 1
+                                print('Exiting PD')
                                 return Node(self.num_nodes, NT_PD, children)
-
+        else:
+            # print('PROCDEFS PASS')
+            pass
         self.parser_error()
 
     def ProcDefs(self):
@@ -807,9 +818,10 @@ class Parser:
             self.advance()
             children.append(self.ProcDefs())
             self.num_nodes += 1
+            print('Exiting ProcDefs')
             return Node(self.num_nodes, NT_PROCDEFS, children)
-
-        self.parser_error()
+        else:
+            return Node(self.num_nodes, NT_PROCDEFS, children)
 
     def SPLProgr(self):
         print('Adding SPL program')
@@ -824,16 +836,18 @@ class Parser:
         children = []
 
         children.append(self.ProcDefs())
+        print('Current token: ' + self.current_token.contents)
         if self.current_token.type == TT_KEYWORD and self.current_token.contents == 'main':
             children.append(self.Keyword())
             if self.current_token.type == TT_LBRACE:
                 self.advance()
                 children.append(self.Algorithm())
                 if self.current_token.type == TT_KEYWORD and self.current_token.contents == 'halt':
-                    self.advance()
+                    children.append(self.Keyword())
                     if self.current_token.type == TT_SEMICOLON:
                         self.advance()
                         children.append(self.VarDecl())
+                        print('Program variable declarations complete!')
                         if self.current_token.type == TT_RBRACE:
                             self.num_nodes += 1
                             return Node(self.num_nodes, NT_SPLPROGRAM, children)
@@ -865,6 +879,8 @@ class Parser:
         if node_type is not None:
             print('Error occurred while trying to parse a node of type ' + node_type +
                   ' and running into an unexpected token: ' + error_token)
+
+        quit()
 
     def get_fresh_token_list_copy(self):
         deep_copy = copy.deepcopy(self.tokens)

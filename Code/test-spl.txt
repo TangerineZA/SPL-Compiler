@@ -1,1 +1,1 @@
-proc aBC { eFG := gHS return ; eFG := 1 }
+proc aBC { eFG := gHS return ; num eFG; num gHS; } main { halt ; }
