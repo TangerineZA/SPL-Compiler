@@ -43,7 +43,7 @@ class Token:
 
     def __repr__(self):
         if self.contents:
-            return f'{self.type}:{self.contents}'
+            return f'{self.type}: {self.contents}, ID: {self.id}'
         return f'{self.type}'
 
 
@@ -53,9 +53,72 @@ class Lexer:
         self.text = text
         self.tokens = []
 
+    def breakUpAndSplit(self, full_text: str):
+        split = full_text.split()
+
+        for full_word in split:
+            if full_word in KEYWORDS:
+                self.tokens.append(Token(TT_KEYWORD, len(self.tokens), full_word))
+                print('Added token ' + full_word + ' of type ' + TT_KEYWORD)
+            elif full_word == ',':
+                self.tokens.append(Token(TT_COMMA, len(self.tokens), ','))
+                print('Added token ' + full_word + ' of type ' + TT_COMMA)
+            elif full_word == ';':
+                self.tokens.append(Token(TT_SEMICOLON, len(self.tokens), ';'))
+                print('Added token ' + full_word + ' of type ' + TT_SEMICOLON)
+            elif full_word == '(':
+                self.tokens.append(Token(TT_LBRACKET, len(self.tokens), '('))
+                print('Added token ' + full_word + ' of type ' + TT_LBRACKET)
+            elif full_word == ')':
+                self.tokens.append(Token(TT_RBRACKET, len(self.tokens), ')'))
+                print('Added token ' + full_word + ' of type ' + TT_RBRACKET)
+            elif full_word == '{':
+                self.tokens.append(Token(TT_LBRACE, len(self.tokens), '{'))
+                print('Added token ' + full_word + ' of type ' + TT_LBRACE)
+            elif full_word == '}':
+                self.tokens.append(Token(TT_RBRACE, len(self.tokens), '}'))
+                print('Added token ' + full_word + ' of type ' + TT_RBRACE)
+            elif full_word == '[':
+                self.tokens.append(Token(TT_LSQUAREBRACKET, len(self.tokens), '['))
+                print('Added token ' + full_word + ' of type ' + TT_LSQUAREBRACKET)
+            elif full_word == ']':
+                self.tokens.append(Token(TT_RSQUAREBRACKET, len(self.tokens), ']'))
+                print('Added token ' + full_word + ' of type ' + TT_RSQUAREBRACKET)
+            elif full_word == ':=':
+                self.tokens.append(Token(TT_ASSIGNMENTOPERATOR, len(self.tokens), ':='))
+                print('Added token ' + full_word + ' of type ' + TT_ASSIGNMENTOPERATOR)
+            elif re.search(NUMBER_REGEX, full_word) is not None:
+                self.tokens.append(Token(TT_NUMBER, len(self.tokens), full_word))
+                print('Added token ' + full_word + ' of type ' + TT_NUMBER)
+            elif re.search(SHORT_STRING_REGEX, full_word) is not None:
+                self.tokens.append(Token(TT_SHORTSTRING, len(self.tokens), full_word))
+                print('Added token ' + full_word + ' of type ' + TT_SHORTSTRING)
+            elif re.search(USER_DEFINED_NAME_REGEX, full_word) is not None:
+                self.tokens.append(Token(TT_USERDEFINEDNAME, len(self.tokens), full_word))
+                print('Added token ' + full_word + ' of type ' + TT_USERDEFINEDNAME)
+            else:
+                self.subdivide(full_word)
+
+    def subdivide(self, text):
+        print('Lexer error!')
+        print('Unrecognised word! ' + text)
+
+
     def break_up(self, full_word):
+        if re.search(NUMBER_REGEX, full_word) is not None:
+            self.tokens.append(Token(TT_NUMBER, len(self.tokens), full_word))
+        elif re.search(SHORT_STRING_REGEX, full_word) is not None:
+            self.tokens.append(Token(TT_SHORTSTRING, len(self.tokens), full_word))
+        elif re.search(USER_DEFINED_NAME_REGEX, full_word) is not None:
+            self.tokens.append(Token(TT_USERDEFINEDNAME, len(self.tokens), full_word))
+        elif full_word in KEYWORDS:
+            self.tokens.append(Token(TT_KEYWORD, len(self.tokens), full_word))
+            exit()
+
         constructed_word = ''
+        print(full_word)
         for x in range(0, len(full_word)):
+            print(x)
             current_char = full_word[x]
             if constructed_word in KEYWORDS:
                 self.tokens.append(Token(TT_KEYWORD, len(self.tokens), constructed_word))
@@ -83,6 +146,7 @@ class Lexer:
             # Assume there's more word to add and check
             elif x != len(full_word):
                 constructed_word = constructed_word.join(constructed_word, current_char)
+                print('lexer iteration of x is at: ' + x)
             # Assume there is nothing left to add and check in constructed word - must be complete item
             elif x == len(full_word):
                 if re.search(NUMBER_REGEX, constructed_word) is not None:
@@ -94,14 +158,20 @@ class Lexer:
             else:
                 print('Lexer error!')
                 print('UNRECOGNISED WORD: ' + full_word)
-                return False
+                quit()
 
     def run_lexer(self):
-        split_text = self.text.split()
-        for x in range(len(split_text)):
-            if not self.break_up(split_text[x]):
-                return False
-        print(self.tokens)
+        #split_text = self.text.split()
+        #print(split_text)
+        #for x in range(len(split_text)):
+        #    if not self.break_up(split_text[x]):
+        #        print('Lexer broken!')
+        #        return False
+
+        self.breakUpAndSplit(self.text)
+        print('\nLEXER OUTPUT:')
+        for token in self.tokens:
+            print(token)
         return self.tokens
 
 
@@ -156,14 +226,13 @@ class Parser:
         self.num_nodes = 0
 
     def advance(self):
+        # print('Advancing through tokens list...')
         self.token_index += 1
         if self.token_index < len(self.tokens):
             self.current_token = self.tokens[self.token_index]
 
-    # TODO: contemplate making all leaf nodes into one switch-case function
-    # on second thoughts no - that would cause more refactoring than I'm keen to do
-
     def Keyword(self):
+        print('Adding Keyword')
         # Leaf node
         token = self.current_token
         if token.type == TT_KEYWORD:
@@ -174,6 +243,7 @@ class Parser:
             self.parser_error()
 
     def UserDefinedName(self):
+        print('Adding UserDefinedName')
         # Leaf node
         token = self.current_token
         if token.type == TT_USERDEFINEDNAME:
@@ -182,6 +252,7 @@ class Parser:
             return Node(self.num_nodes, NT_USERDEFINEDNAME, token)
 
     def TYP(self):
+        print('Adding TYP')
         # Leaf node
         token = self.current_token
         if token.type == TT_KEYWORD and token.contents in TYP_WORDS:
@@ -190,14 +261,17 @@ class Parser:
             return Node(self.num_nodes, NT_TYP, token)
 
     def Var(self):
+        print('Adding Var')
         # Leaf node
         token = self.current_token
         if token.type == TT_USERDEFINEDNAME:
             self.advance()
             self.num_nodes += 1
-            return Node(self.num_nodes, NT_VAR, token)
+            new_node = Node(self.num_nodes, NT_VAR, token)
+            return new_node
 
     def Const(self):
+        print('Adding Const')
         # Leaf node
         token = self.current_token
         if token.type in (TT_NUMBER, TT_SHORTSTRING) or (token.type == TT_KEYWORD and token.contents in BOOLEAN_WORDS):
@@ -206,6 +280,7 @@ class Parser:
             return Node(self.num_nodes, NT_TYP, token)
 
     def Dec(self):
+        print('Adding Dec')
         # Compound node
 
         # Branching based on two possible Dec types:
@@ -218,6 +293,7 @@ class Parser:
 
         children = []
         if self.current_token.type == TT_KEYWORD and self.current_token.contents == 'arr':
+            print('Adding array')
             children.append(self.Keyword())
             children.append(self.TYP())
             if self.current_token.type == TT_LSQUAREBRACKET:
@@ -228,17 +304,16 @@ class Parser:
                     children.append(self.Var())
                     self.num_nodes += 1
                     return Node(self.num_nodes, NT_DEC, children)
-                else:
-                    self.parser_error()
-            else:
-                self.parser_error()
         elif self.current_token.type == TT_KEYWORD and self.current_token.contents in TYP_WORDS:
             children.append(self.TYP())
             children.append(self.Var())
+            self.num_nodes += 1
+            return Node(self.num_nodes, NT_DEC, children)
         else:
             self.parser_error()
 
     def VarDecl(self):
+        print('Adding VarDecl')
         # Compound node
 
         # Branching because nullable
@@ -279,6 +354,7 @@ class Parser:
             return 0
 
     def BinOp(self):
+        print('Adding BinOp')
         # Compound node
 
         # No branching
@@ -305,6 +381,7 @@ class Parser:
         return None
 
     def UnOp(self):
+        print('Adding UnOp')
         # Compound node
 
         # Branching based on which operator
@@ -336,6 +413,7 @@ class Parser:
             return None
 
     def Field(self):
+        print('Adding Field')
         # Compound node
 
         # Branching based on Variable or Constant or just name
@@ -368,6 +446,7 @@ class Parser:
             return None
 
     def PCall(self):
+        print('Adding PCall')
         # Compound node
 
         # No branching
@@ -393,6 +472,7 @@ class Parser:
             return None
 
     def Expr(self):
+        print('Adding Expr')
         # Compound node
 
         # Branching based on which node type the expression consists of
@@ -441,8 +521,7 @@ class Parser:
                             return None
 
     def LHS(self):
-        # TODO: requires testing
-
+        print('Adding LHS')
         # Compound node
 
         # Branching based on types
@@ -456,17 +535,16 @@ class Parser:
         # If branch 3: the Var node
 
         token = self.current_token
-        field = self.Field()
-        var = self.Var()
         children = []
         if token.type == TT_KEYWORD and token.contents == 'output':
             self.num_nodes += 1
             self.advance()
             return Node(self.num_nodes, NT_LHS, token)
-        elif field is not None:
-            self.num_nodes += 1
-            return Node(self.num_nodes, NT_LHS, children)
-        elif var is not None:
+        elif token.type == TT_USERDEFINEDNAME:
+            if self.tokens[self.token_index + 1].type == TT_LSQUAREBRACKET:
+                children.append(self.Field())
+            else:
+                children.append(self.Var())
             self.num_nodes += 1
             return Node(self.num_nodes, NT_LHS, children)
         else:
@@ -474,6 +552,7 @@ class Parser:
             return None
 
     def Loop(self):
+        print('Adding loop')
         # Compound node
 
         # Branching:
@@ -528,6 +607,7 @@ class Parser:
         return None
 
     def Alternat(self):
+        print('Adding alternat')
         # Compound node
 
         # Branch on nullable
@@ -550,6 +630,7 @@ class Parser:
             pass
 
     def Branch(self):
+        print('Adding branch')
         # Compound node
 
         # No branching
@@ -577,6 +658,8 @@ class Parser:
         self.parser_error()
 
     def Assign(self):
+        print('Entered assignment')
+
         # Compound node
 
         # No branching
@@ -586,19 +669,30 @@ class Parser:
 
         children = []
 
-        if self.current_token.type == TT_USERDEFINEDNAME:
-            children.append(self.Var())
+        children.append(self.LHS())
+        if self.current_token.type == TT_ASSIGNMENTOPERATOR:
+            self.advance()
+            children.append(self.Expr())
             self.num_nodes += 1
             return Node(self.num_nodes, NT_ASSIGN, children)
-        elif self.current_token.type == TT_KEYWORD and self.current_token.contents == 'output':
-            children.append(self.Keyword())
-            self.num_nodes += 1
-            return Node(self.num_nodes, NT_ASSIGN, children)
+
+        #if self.current_token.type == TT_USERDEFINEDNAME:
+        #    if self.tokens[self.token_index + 1].type == TT_LSQUAREBRACKET:
+        #        children.append(self.Field())
+        #    else:
+        #        children.append(self.Var())
+        #    self.num_nodes += 1
+        #    return Node(self.num_nodes, NT_ASSIGN, children)
+        #elif self.current_token.type == TT_KEYWORD and self.current_token.contents == 'output':
+        #    children.append(self.Keyword())
+        #    self.num_nodes += 1
+        #    return Node(self.num_nodes, NT_ASSIGN, children)
 
         self.parser_error()
         return None
 
     def Instr(self):
+        print('Adding Instruction')
         # Compound node
 
         # Branching:
@@ -633,6 +727,7 @@ class Parser:
         self.parser_error()
 
     def Algorithm(self):
+        print('Adding Algorithm')
         # Compound
 
         # Branching based on nullable
@@ -651,10 +746,16 @@ class Parser:
                     children.append(self.Algorithm())
                     self.num_nodes += 1
                     return Node(self.num_nodes, NT_ALGORITHM, children)
+        else:
+            print('Algorithm is an assignment operation!')
+            children.append(self.Assign())
+            self.num_nodes += 1
+            return Node(self.num_nodes, NT_ALGORITHM, children)
 
-        pass
+        print('Algorithm null')
 
     def PD(self):
+        print('Adding PD')
         # Compound
 
         # No branching - just:
@@ -673,6 +774,7 @@ class Parser:
                     self.advance()
                     children.append(self.ProcDefs())
                     children.append(self.Algorithm())
+                    print('ProcDefs and Algorithm done in PD... moving on to return value!')
                     if self.current_token.type == TT_KEYWORD and self.current_token.contents == 'return':
                         children.append(self.Keyword())
                         if self.current_token.type == TT_SEMICOLON:
@@ -683,8 +785,8 @@ class Parser:
 
         self.parser_error()
 
-
     def ProcDefs(self):
+        print('Adding ProcDefs')
         # Compound
 
         # Branching on nullable
@@ -695,7 +797,8 @@ class Parser:
         tokens_copy = self.get_fresh_token_list_copy()
         current_token_copy = tokens_copy[self.token_index]
         if current_token_copy.type != TT_KEYWORD or current_token_copy.contents != 'proc':
-            pass
+            print('ProcDefs null')
+            return None
 
         children = []
 
@@ -709,6 +812,7 @@ class Parser:
         self.parser_error()
 
     def SPLProgr(self):
+        print('Adding SPL program')
         # Compound
 
         # No branching - only:
@@ -754,8 +858,9 @@ class Parser:
         error_token_index = self.token_index
 
         print('Parser Error!')
+        print('Error occurred at ' + self.current_token.contents)
 
-        print('Error occurred at token ' + error_token + '(token number ' + error_token_index + ')')
+        # print('Error occurred at token number ' + error_token_index + '), type ' + error_token.type)
 
         if node_type is not None:
             print('Error occurred while trying to parse a node of type ' + node_type +
@@ -764,16 +869,6 @@ class Parser:
     def get_fresh_token_list_copy(self):
         deep_copy = copy.deepcopy(self.tokens)
         return deep_copy
-
-
-class Error:
-    def __init__(self, error_name, details):
-        self.error_name = error_name
-        self.details = details
-
-    def as_string(self):
-        result = f'{self.error_name}: {self.details}'
-        return result
 
 
 # File reading functionality implementation

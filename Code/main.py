@@ -15,8 +15,10 @@ if __name__ == '__main__':
 
     lexer = spl.Lexer(file_text)
     token_list = lexer.run_lexer()
+    print('\nLEXER COMPLETED - OUTPUT ABOVE\n')
 
     parser = spl.Parser(token_list)
     program_node = parser.run_parser()
+    print('\nPARSER COMPLETED - OUTPUT ABOVE\n')
 
     print('End of Practical A scope!')
