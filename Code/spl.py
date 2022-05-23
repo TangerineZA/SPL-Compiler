@@ -23,7 +23,7 @@ WHITESPACES = ' \t\n'
 KEYWORDS = ['arr', 'sub', 'mult', 'add', 'larger', 'eq', 'or', 'and', 'not',
             'input', 'true', 'false', 'if', 'then', 'else', 'proc', 'main',
             'return', 'halt', 'num', 'bool', 'string']
-BRACKETED_WORDS =  ['and(', 'or(', 'eq(', 'larger(', 'add(', 'sub(', 'mult(', 'input(', 'not(']
+BRACKETED_WORDS = ['and(', 'or(', 'eq(', 'larger(', 'add(', 'sub(', 'mult(', 'input(', 'not(']
 NUMBER_REGEX = '^[0-9]*[.,]{0,1}[0-9]*$'
 SHORT_STRING_REGEX = '^([A-Z][ ][0-9]){0,15}$'
 USER_DEFINED_NAME_REGEX = '[a-z].([a-z] | [0-9])*'
@@ -54,7 +54,7 @@ class Lexer:
         self.text = text
         self.tokens = []
 
-    def breakUpAndSplit(self, full_text: str):
+    def break_up_and_split(self, full_text: str):
         split = full_text.split()
 
         for full_word in split:
@@ -109,7 +109,6 @@ class Lexer:
         else:
             print('Lexer error! Unrecognised word: ' + full_word)
 
-
     def break_up(self, full_word):
         if re.search(NUMBER_REGEX, full_word) is not None:
             self.tokens.append(Token(TT_NUMBER, len(self.tokens), full_word))
@@ -145,14 +144,14 @@ class Lexer:
                 self.tokens.append(Token(TT_LSQUAREBRACKET, len(self.tokens), '['))
             elif current_char == ']':
                 self.tokens.append(Token(TT_RSQUAREBRACKET, len(self.tokens), ']'))
-            elif current_char == ':' and full_word[x+1] == '=':
+            elif current_char == ':' and full_word[x + 1] == '=':
                 self.tokens.append(Token(TT_ASSIGNMENTOPERATOR, len(self.tokens), ':='))
             elif full_word in KEYWORDS:
                 self.tokens.append(Token(TT_KEYWORD, len(self.tokens), full_word))
             # Assume there's more word to add and check
             elif x != len(full_word):
                 constructed_word = constructed_word.join(constructed_word, current_char)
-                print('lexer iteration of x is at: ' + x)
+                print('lexer iteration of x is at: ' + str(x))
             # Assume there is nothing left to add and check in constructed word - must be complete item
             elif x == len(full_word):
                 if re.search(NUMBER_REGEX, constructed_word) is not None:
@@ -167,14 +166,7 @@ class Lexer:
                 quit()
 
     def run_lexer(self):
-        #split_text = self.text.split()
-        #print(split_text)
-        #for x in range(len(split_text)):
-        #    if not self.break_up(split_text[x]):
-        #        print('Lexer broken!')
-        #        return False
-
-        self.breakUpAndSplit(self.text)
+        self.break_up_and_split(self.text)
         print('\nLEXER OUTPUT:')
         for token in self.tokens:
             print(token)
@@ -221,6 +213,9 @@ class Node:
 
     def __repr__(self):
         return f'\n{self.node_id}:{self.node_class}:{self.node_contents}'
+
+    def has_children(self):
+        return isinstance(self.node_contents, list)
 
 
 class Parser:
@@ -324,6 +319,7 @@ class Parser:
             self.parser_error()
 
     vardec_recursion_layer = -1
+
     def VarDecl(self):
         self.vardec_recursion_layer += 1
         # print('Adding VarDecl - current recursion layer = ' + self.vardec_recursion_layer.__str__())
@@ -677,19 +673,6 @@ class Parser:
             children.append(self.Expr())
             self.num_nodes += 1
             return Node(self.num_nodes, NT_ASSIGN, children)
-
-        #if self.current_token.type == TT_USERDEFINEDNAME:
-        #    if self.tokens[self.token_index + 1].type == TT_LSQUAREBRACKET:
-        #        children.append(self.Field())
-        #    else:
-        #        children.append(self.Var())
-        #    self.num_nodes += 1
-        #    return Node(self.num_nodes, NT_ASSIGN, children)
-        #elif self.current_token.type == TT_KEYWORD and self.current_token.contents == 'output':
-        #    children.append(self.Keyword())
-        #    self.num_nodes += 1
-        #    return Node(self.num_nodes, NT_ASSIGN, children)
-
         self.parser_error()
         return None
 
@@ -709,7 +692,8 @@ class Parser:
 
         children = []
 
-        if self.current_token.type == TT_USERDEFINEDNAME or (self.current_token.type == TT_KEYWORD and self.current_token.contents == 'output'):
+        if self.current_token.type == TT_USERDEFINEDNAME or (
+                self.current_token.type == TT_KEYWORD and self.current_token.contents == 'output'):
             children.append(self.Assign())
             self.num_nodes += 1
             print('Exiting instruction')
@@ -873,7 +857,7 @@ class Parser:
 
         return program_node
 
-    def parser_error(self, node_type = None):
+    def parser_error(self, node_type=None):
         error_token = self.current_token
         error_token_index = self.token_index
 
@@ -893,8 +877,64 @@ class Parser:
         return deep_copy
 
 
+# Scope table entry
+class ScopeTableEntry:
+    def __init__(self, id, parent, children):
+        self.id = id
+        self.parent = parent
+        self.children = children
+
+    def __repr__(self):
+        return f'\nID: {self.id}, Parent node: {self.parent.id} \nChildren: {self.children}'
+
+    def update_children(self, children: list):
+        self.children = children
+
+
+# Actual scope table
+class ScopeTable:
+    def __init__(self):
+        print('Fresh scope table created!')
+        self.scope_list = list
+
+    def update_list(self, entry):
+        self.scope_list.append(entry)
+        print('Scope table head entry added!')
+
+
+# Static semantic analyst
+class Analyst:
+    scope_level = 0
+
+    def __init__(self, parse_tree: list):
+        self.parse_tree = parse_tree
+        self.scope_table = ScopeTable()
+
+    def recursive_scope_analysis(self, current_node, parent):
+
+        # Creates scope table entry object from current node, recursively checks scope of children and creates object
+        # for each child, and then adds children into original object upwards in tree, eventually returning the final
+        # entry
+
+        current_entry = ScopeTableEntry(self.scope_level, parent, None)
+        if current_node.has_children():
+            self.scope_level += 1  # Scope depth increases each time we branch into a child node
+            child_entries = []  # Array of child ScopeTableEntry object
+            for child_node in current_node.children:
+                child_entries.append(self.recursive_scope_analysis(child_node, current_node))
+            current_entry.update_children(child_entries)
+        return current_entry
+
+        # Ultimately returns parent ScopeTableEntry object - might render actual scope table object a bit redundant,
+        # but we can work on that later if necessary with a TODO
+
+    def analyse_scope(self):
+        parent_node = self.recursive_scope_analysis(self.parse_tree[0], None)
+        print(parent_node)
+
+
 # File reading functionality implementation
-class File_Reader:
+class FileReader:
     def __init__(self, filename):
         try:
             self.file = open(filename, "r")
@@ -911,14 +951,14 @@ class File_Reader:
 
     def get_all_text(self):
         # Returns full text
-        list = self.file.readlines()
-        full_text = ''.join(list)
+        text_list = self.file.readlines()
+        full_text = ''.join(text_list)
         return full_text
 
 
 class Runner:
     def __init__(self):
-        self.file_reader = File_Reader(sys.argv[1])
+        self.file_reader = FileReader(sys.argv[1])
         self.lexer = None
         self.parser = None
 
