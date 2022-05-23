@@ -931,7 +931,8 @@ class Analyst:
     def analyse_scope(self):
         parent_node = self.recursive_scope_analysis(self.parse_tree[0], None)
         print(parent_node)
-
+        self.scope_table.update_list(parent_node)
+        return self.scope_table
 
 # File reading functionality implementation
 class FileReader:
@@ -965,12 +966,23 @@ class Runner:
     def run_lexer(self):
         self.lexer = Lexer(self.file_reader.get_all_text())
         self.lexer.run_lexer()
-        print('/n LEXER COMPLETED')
+        print('\n LEXER COMPLETED')
 
     def run_parser_and_lexer(self):
         self.lexer = Lexer(self.file_reader.get_all_text())
         tokens = self.lexer.run_lexer()
-        print('/n LEXER COMPLETED!')
+        print('\n LEXER COMPLETED!')
         self.parser = Parser(tokens)
         self.parser.run_parser()
-        print('/n PARSER COMPLETED')
+        print('\n PARSER COMPLETED')
+
+    def run_parser_lexer_inital_scope(self):
+        self.lexer = Lexer(self.file_reader.get_all_text())
+        tokens = self.lexer.run_lexer()
+        print('\n LEXER COMPLETED!')
+        self.parser = Parser(tokens)
+        node = self.parser.run_parser()
+        print('\n PARSER COMPLETED')
+        analyst = Analyst(node)
+        scope_table = analyst.analyse_scope()
+        print('\nINITIAL SCOPE CHECK COMPLETE')

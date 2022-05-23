@@ -21,4 +21,8 @@ if __name__ == '__main__':
     program_node = parser.run_parser()
     print('\nPARSER COMPLETED - OUTPUT ABOVE\n')
 
+    analyst = spl.Analyst(program_node)
+    scope_table = analyst.analyse_scope()
+    print('\nINITIAL SCOPE CHECK COMPLETE - OUTPUT ABOVE\n')
+
     print('End of Practical A scope!')
