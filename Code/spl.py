@@ -23,6 +23,7 @@ WHITESPACES = ' \t\n'
 KEYWORDS = ['arr', 'sub', 'mult', 'add', 'larger', 'eq', 'or', 'and', 'not',
             'input', 'true', 'false', 'if', 'then', 'else', 'proc', 'main',
             'return', 'halt', 'num', 'bool', 'string']
+BRACKETED_WORDS =  ['and(', 'or(', 'eq(', 'larger(', 'add(', 'sub(', 'mult(', 'input(', 'not(']
 NUMBER_REGEX = '^[0-9]*[.,]{0,1}[0-9]*$'
 SHORT_STRING_REGEX = '^([A-Z][ ][0-9]){0,15}$'
 USER_DEFINED_NAME_REGEX = '[a-z].([a-z] | [0-9])*'
@@ -99,9 +100,14 @@ class Lexer:
             else:
                 self.subdivide(full_word)
 
-    def subdivide(self, text):
-        print('Lexer error!')
-        print('Unrecognised word! ' + text)
+    def subdivide(self, full_word):
+        if full_word in BRACKETED_WORDS:
+            fixed_word = full_word[:-1]
+            self.tokens.append(Token(TT_KEYWORD, len(self.tokens), fixed_word))
+            print('Added token ' + fixed_word + ' of type ' + TT_KEYWORD)
+            self.tokens.append(Token(TT_LBRACKET, len(self.tokens), '('))
+        else:
+            print('Lexer error! Unrecognised word: ' + full_word)
 
 
     def break_up(self, full_word):
