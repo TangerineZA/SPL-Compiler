@@ -23,7 +23,7 @@ WHITESPACES = ' \t\n'
 KEYWORDS = ['arr', 'sub', 'mult', 'add', 'larger', 'eq', 'or', 'and', 'not',
             'input', 'true', 'false', 'if', 'then', 'else', 'proc', 'main',
             'return', 'halt', 'num', 'bool', 'string']
-BRACKETED_WORDS =  ['and(', 'or(', 'eq(', 'larger(', 'add(', 'sub(', 'mult(', 'input(', 'not(']
+BRACKETED_WORDS = ['and(', 'or(', 'eq(', 'larger(', 'add(', 'sub(', 'mult(', 'input(', 'not(']
 NUMBER_REGEX = '^[0-9]*[.,]{0,1}[0-9]*$'
 SHORT_STRING_REGEX = '^([A-Z][ ][0-9]){0,15}$'
 USER_DEFINED_NAME_REGEX = '[a-z].([a-z] | [0-9])*'
@@ -54,7 +54,7 @@ class Lexer:
         self.text = text
         self.tokens = []
 
-    def breakUpAndSplit(self, full_text: str):
+    def break_up_and_split(self, full_text: str):
         split = full_text.split()
 
         for full_word in split:
@@ -107,7 +107,30 @@ class Lexer:
             print('Added token ' + fixed_word + ' of type ' + TT_KEYWORD)
             self.tokens.append(Token(TT_LBRACKET, len(self.tokens), '('))
         else:
-            print('Lexer error! Unrecognised word: ' + full_word)
+            self.advanced_subdivide(full_word)
+
+    def advanced_subdivide(self, full_word):
+        word_list = []
+        partial_list = full_word.split('(')
+        for part_word in partial_list:
+            if part_word.contains(')'):
+                partial_list.append(part_word.split(')'))
+                partial_list.remove(part_word)
+        word_list = partial_list
+        if word_list[0] in BINOP_WORDS:
+            self.tokens.append(Token(TT_KEYWORD, len(self.tokens), word_list[0]))
+        elif word_list[0] in ('input', 'not'):
+            self.tokens.append(Token(TT_KEYWORD, len(self.tokens), word_list[0]))
+        if word_list[1] == '(':
+            self.tokens.append(Token(TT_LBRACKET, len(self.tokens), word_list[1]))
+        self.tokens.append(Token(TT_KEYWORD, len(self.tokens), word_list[2]))
+        if word_list[3] == ',':
+            self.tokens.append(Token(TT_COMMA, len(self.tokens), word_list[3]))
+            self.tokens.append(Token(TT_KEYWORD, len(self.tokens), word_list[4]))
+            self.tokens.append(Token(TT_RBRACKET, len(self.tokens), word_list[5]))
+        elif word_list[3] == ')':
+            self.tokens.append(Token(TT_RBRACKET, len(self.tokens), word_list[3]))
+
 
 
     def break_up(self, full_word):
@@ -145,14 +168,14 @@ class Lexer:
                 self.tokens.append(Token(TT_LSQUAREBRACKET, len(self.tokens), '['))
             elif current_char == ']':
                 self.tokens.append(Token(TT_RSQUAREBRACKET, len(self.tokens), ']'))
-            elif current_char == ':' and full_word[x+1] == '=':
+            elif current_char == ':' and full_word[x + 1] == '=':
                 self.tokens.append(Token(TT_ASSIGNMENTOPERATOR, len(self.tokens), ':='))
             elif full_word in KEYWORDS:
                 self.tokens.append(Token(TT_KEYWORD, len(self.tokens), full_word))
             # Assume there's more word to add and check
             elif x != len(full_word):
                 constructed_word = constructed_word.join(constructed_word, current_char)
-                print('lexer iteration of x is at: ' + x)
+                print('lexer iteration of x is at: ' + str(x))
             # Assume there is nothing left to add and check in constructed word - must be complete item
             elif x == len(full_word):
                 if re.search(NUMBER_REGEX, constructed_word) is not None:
@@ -167,14 +190,7 @@ class Lexer:
                 quit()
 
     def run_lexer(self):
-        #split_text = self.text.split()
-        #print(split_text)
-        #for x in range(len(split_text)):
-        #    if not self.break_up(split_text[x]):
-        #        print('Lexer broken!')
-        #        return False
-
-        self.breakUpAndSplit(self.text)
+        self.break_up_and_split(self.text)
         print('\nLEXER OUTPUT:')
         for token in self.tokens:
             print(token)
@@ -221,6 +237,9 @@ class Node:
 
     def __repr__(self):
         return f'\n{self.node_id}:{self.node_class}:{self.node_contents}'
+
+    def has_children(self):
+        return isinstance(self.node_contents, list)
 
 
 class Parser:
@@ -324,6 +343,7 @@ class Parser:
             self.parser_error()
 
     vardec_recursion_layer = -1
+
     def VarDecl(self):
         self.vardec_recursion_layer += 1
         # print('Adding VarDecl - current recursion layer = ' + self.vardec_recursion_layer.__str__())
@@ -677,19 +697,6 @@ class Parser:
             children.append(self.Expr())
             self.num_nodes += 1
             return Node(self.num_nodes, NT_ASSIGN, children)
-
-        #if self.current_token.type == TT_USERDEFINEDNAME:
-        #    if self.tokens[self.token_index + 1].type == TT_LSQUAREBRACKET:
-        #        children.append(self.Field())
-        #    else:
-        #        children.append(self.Var())
-        #    self.num_nodes += 1
-        #    return Node(self.num_nodes, NT_ASSIGN, children)
-        #elif self.current_token.type == TT_KEYWORD and self.current_token.contents == 'output':
-        #    children.append(self.Keyword())
-        #    self.num_nodes += 1
-        #    return Node(self.num_nodes, NT_ASSIGN, children)
-
         self.parser_error()
         return None
 
@@ -709,7 +716,8 @@ class Parser:
 
         children = []
 
-        if self.current_token.type == TT_USERDEFINEDNAME or (self.current_token.type == TT_KEYWORD and self.current_token.contents == 'output'):
+        if self.current_token.type == TT_USERDEFINEDNAME or (
+                self.current_token.type == TT_KEYWORD and self.current_token.contents == 'output'):
             children.append(self.Assign())
             self.num_nodes += 1
             print('Exiting instruction')
@@ -873,7 +881,7 @@ class Parser:
 
         return program_node
 
-    def parser_error(self, node_type = None):
+    def parser_error(self, node_type=None):
         error_token = self.current_token
         error_token_index = self.token_index
 
@@ -893,8 +901,225 @@ class Parser:
         return deep_copy
 
 
+# Scope table entry
+class ScopeTableEntry:
+    def __init__(self, id, parent, children, node):
+        self.id = id
+        self.parent = parent
+        self.children = children
+        self.node = node
+
+    def __repr__(self):
+        if self.parent is not None and self.node is not None:
+            return f'\nID: {self.id} (Node type: {self.node.node_class}, node ID: {self.node.node_id}), ' \
+                   f'Parent node: {self.parent.node_class}, parent parse tree ID: {self.parent.node_id}, ' \
+                   f'Children: {self.children}'
+        else:
+            return f'\nID: {self.id}, ' \
+                   f'Parent node: None, Children: {self.children}'
+
+    def update_children(self, children: list):
+        self.children = children
+
+
+# Static semantic analyst
+class Analyst:
+    scope_level = 0
+    parent_node = None
+
+    def __init__(self, program_node: list, node_list: list):
+        self.program_node = program_node
+        self.node_list = node_list
+
+    def recursive_scope_analysis(self, current_node, parent):
+        # Creates scope table entry object from current node, recursively checks scope of children and creates object
+        # for each child, and then adds children into original object upwards in tree, eventually returning the final
+        # entry
+
+        # print('Recursive scope analysis - scope level ' + str(self.scope_level))
+
+        current_entry = ScopeTableEntry(self.scope_level, parent, None, current_node)
+        # print('Instantiated current entry')
+        if current_node is not None and current_node.has_children():
+            # print('Current node has children')
+            child_entries = []  # Array of child ScopeTableEntry object
+            # print('Created empty array of child entries at level ' + str(self.scope_level))
+            for child_node in current_node.node_contents:
+                self.scope_level += 1
+                # print('Delving into recursive layer')
+                child_entries.append(self.recursive_scope_analysis(child_node, current_node))
+                self.scope_level -= 1
+            current_entry.update_children(child_entries)
+        print(current_entry)
+        return current_entry
+
+        # Ultimately returns parent ScopeTableEntry object - might render actual scope table object a bit redundant,
+        # but we can work on that later if necessary with a TODO
+
+    def analyse_scope(self):
+        # Returns scope table entry object, which categorises all given AST nodes into their respective scope levels
+        print('Starting scope analysis...')
+        self.parent_node = self.recursive_scope_analysis(self.program_node, None)
+        print('Recursive scope analysis complete:')
+        print(self.parent_node)
+        return self.parent_node
+
+    def analyse_syntactic_objects(self):
+        # Checking for no procedures being named "main" done implicitly in parsing stage
+
+        # Check that no child procedures are named after parent procedures
+        # i.e., check each node's children for nodes of the same name
+        # for child_node in self.program_node.children:
+        #    current_pd_name = ''
+        #    if child_node.node_class == NT_PD: # get the same of the PD node - the first UserDefinedName child
+        #        current_pd_name = child_node.node_contents[1].node_contents.contents
+        #        print('Checking procedure declaration for incorrectly nested names: ' + current_pd_name)
+        #        for pd_child_node in child_node.node_contents:
+        #            if child_node.node_class == NT_PD:  # get the same of the PD node - the first UserDefinedName child
+        #                if child_node.node_contents[1].node_contents.contents == current_pd_name:
+        #                    self.nested_procedure_def_error(current_pd_name) # TODO
+        pass
+        # possibly do some variable analysis - check whether there are any variables that are re-declared somewhere?
+
+    def nested_procedure_def_error(self, proc_name):
+        print('Nested program declaration error!')
+        print('Redeclared procedure: ' + proc_name)
+        print('COMPILATION TERMINATING')
+        quit()
+
+    def convert_types(self, type, content):
+        if type == TT_NUMBER:
+            if content.contains('-'):
+                return 'N'
+            else:
+                return 'NN'
+        if type == 'boolean':
+            if content == 'true':
+                return 'BT'
+            else:
+                return 'BF'
+        if type == TT_SHORTSTRING:
+            return 'S'
+
+    variable_list = []
+    def check_types(self, given_node):
+        # search through whole program for variables
+        # when a variable is found, add it to the list of named variables
+        # when used, check if in list
+        # if not, then decl-appl
+
+        # when done, run through list and find any variables which haven't been used
+        # emit appl-decl error
+
+        for node in given_node.node_contents:
+            # pass 1 - find all declarations
+            if node.node_class == NT_VARDECL:
+                new_var = VariableItem()
+                child_node = node.node_contents[0]
+                if child_node.node_contents[0].node_class == NT_TYP:
+                    # getting type from further down declaration
+                    new_var.set_type(self.convert_types(child_node.node_contents[0].node_class))
+                    # getting name from further down declaration
+                    new_var.set_name(child_node.node_contents[1].node_contents[0].node_contents)
+                    self.variable_list.append(new_var)
+                    for child in node.node_contents:
+                        self.check_types(child)
+                else:
+                    new_var.set_array(True)
+                    if child_node.node_contents[1].node_class == NT_TYP:
+                        new_var.set_type(self.convert_types(child_node.node_contents[1].node_class))
+                        new_var.set_name(child_node.node_contents[5].node_contents[0].node_contents)
+                        self.variable_list.append(new_var)
+                        for child in node.node_contents:
+                            self.check_types(child)
+
+            elif node.node_class == NT_VAR:
+                var_name = node.node_contents[0].node_contents
+                for variable_node in self.variable_list:
+                    if variable_node.node_name == var_name:
+                        variable_node.set_used(True)
+                        self.variable_list.append(new_var)
+                for child in node.node_contents:
+                    self.check_types(child)
+
+            elif node.node_class == NT_BINOP:
+                if node.node_contents[2] == NT_EXPR and node.node_contents[4] == NT_EXPR:
+                    new_var.set_type('B')
+                    new_var.set_name('binop')
+                    self.variable_list.append(new_var)
+                    for child in node.node_contents:
+                        self.check_types(child)
+                else:
+                    new_var.set_type('BF')
+                    new_var.set_name('binop')
+                    self.variable_list.append(new_var)
+                    for child in node.node_contents:
+                        self.check_types(child)
+
+            elif node.node_class == NT_UNOP:
+                new_var.set_type('B')
+                new_var.set_name('unop')
+                self.variable_list.append(new_var)
+                for child in node.node_contents:
+                    self.check_types(child)
+
+            elif node.node_class == NT_BINOP:
+                argument_1 = node.node_contents[3]
+                argument_2 = node.node_contents[5]
+                name_1 = ''
+                type_1 = ''
+                name_2 = ''
+                type_2 = ''
+                for variable in self.variable_list:
+                    if variable.name == argument_1:
+                        name_1 = variable.name
+                        type_1 = variable.type
+                    elif variable.name == argument_2:
+                        name_2 = variable.name
+                        type_2 = variable.type
+                if type_1 != type_2:
+                    print('Lack of value error! ' + name_1)
+                    quit()
+
+
+
+
+
+        for variable in self.variable_list:
+            if variable.used == False and variable.name != 'binop':
+                print('Declared variable not used! APPL-DECL error! ' + var_name)
+                quit()
+
+            if variable.type == None:
+                print('Declared variable not used! DECL-APPL error! ' + var_name)
+                quit()
+
+        print(self.variable_list)
+
+
+class VariableItem:
+    name = None
+    type = None
+    used = False
+    array = False
+
+    def __repr__(self):
+        f'{self.name}, {self.type}, Used? {self.used}, Array? {self.array}'
+
+    def set_name(self, name):
+        self.name = name
+
+    def set_type(self, type):
+        self.type = type
+
+    def set_used(self, used):
+        self.used = used
+
+    def set_array(self, is_array):
+        self.array = is_array
+
 # File reading functionality implementation
-class File_Reader:
+class FileReader:
     def __init__(self, filename):
         try:
             self.file = open(filename, "r")
@@ -911,26 +1136,37 @@ class File_Reader:
 
     def get_all_text(self):
         # Returns full text
-        list = self.file.readlines()
-        full_text = ''.join(list)
+        text_list = self.file.readlines()
+        full_text = ''.join(text_list)
         return full_text
 
 
 class Runner:
     def __init__(self):
-        self.file_reader = File_Reader(sys.argv[1])
+        self.file_reader = FileReader(sys.argv[1])
         self.lexer = None
         self.parser = None
 
     def run_lexer(self):
         self.lexer = Lexer(self.file_reader.get_all_text())
         self.lexer.run_lexer()
-        print('/n LEXER COMPLETED')
+        print('\n LEXER COMPLETED')
 
     def run_parser_and_lexer(self):
         self.lexer = Lexer(self.file_reader.get_all_text())
         tokens = self.lexer.run_lexer()
-        print('/n LEXER COMPLETED!')
+        print('\n LEXER COMPLETED!')
         self.parser = Parser(tokens)
         self.parser.run_parser()
-        print('/n PARSER COMPLETED')
+        print('\n PARSER COMPLETED')
+
+    def run_parser_lexer_inital_scope(self):
+        self.lexer = Lexer(self.file_reader.get_all_text())
+        tokens = self.lexer.run_lexer()
+        print('\n LEXER COMPLETED!')
+        self.parser = Parser(tokens)
+        node = self.parser.run_parser()
+        print('\n PARSER COMPLETED')
+        analyst = Analyst(node)
+        scope_table = analyst.analyse_scope()
+        print('\nINITIAL SCOPE CHECK COMPLETE')
