@@ -26,7 +26,15 @@ if __name__ == '__main__':
     analyst = spl.Analyst(program_node, token_list)
     types_list = analyst.check_types()
     scope_table = analyst.analyse_scope()
-    print('\nINITIAL SCOPE CHECK COMPLETE - OUTPUT ABOVE\n')
-
+    print('\nSCOPE CHECK COMPLETE - OUTPUT ABOVE\n')
 
     print('End of Practical B scope!')
+
+    ast_generator = spl.AstIntermediateGenerator()
+    ast_generator.parent_node = program_node
+    ast_generator.generate_vtable()
+    ast_generator.generate_ftable()
+    ast_generator.generate_code()
+
+    print('Done!')
+
