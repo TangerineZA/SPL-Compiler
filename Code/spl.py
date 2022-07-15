@@ -1,4 +1,5 @@
 # Imports
+import os
 import sys
 import re
 import copy
@@ -219,6 +220,7 @@ NT_USERDEFINEDNAME = 'UserDefinedName'
 NT_PD = 'PD'
 NT_INSTR = 'Instruction'
 NT_ASSIGN = 'Assignment'
+NT_BRANCH = 'Branch'
 
 # Node convenience constants
 TYP_WORDS = ['num', 'bool', 'string']
@@ -754,6 +756,16 @@ class Parser:
         if self.current_token.type == TT_KEYWORD:
             # So if there is likely to be an instruction type
             if self.current_token.contents in ('do', 'loop', 'call', 'if'):
+
+                if self.current_token.contents == 'do':
+                    children.append(Node(0, NT_LOOP), None)
+                elif self.current_token.contents == 'loop':
+                    children.append(Node(0, NT_LOOP), None)
+                elif self.current_token.contents == 'call':
+                    children.append(Node(0, NT_PCALL), None)
+                elif self.current_token.contents == 'if':
+                    children.append(Node(0, NT_BRANCH), None)
+
                 children.append(self.Instr())
                 if self.current_token.type == TT_SEMICOLON:
                     self.advance()
@@ -903,11 +915,12 @@ class Parser:
 
 # Scope table entry
 class ScopeTableEntry:
-    def __init__(self, id, parent, children, node):
+    def __init__(self, id, parent, children, node, text):
         self.id = id
         self.parent = parent
         self.children = children
         self.node = node
+        self.text = text
 
     def __repr__(self):
         if self.parent is not None and self.node is not None:
@@ -920,6 +933,9 @@ class ScopeTableEntry:
 
     def update_children(self, children: list):
         self.children = children
+
+    def set_text(self, text):
+        self.text = text
 
 
 # Static semantic analyst
@@ -938,7 +954,7 @@ class Analyst:
 
         # print('Recursive scope analysis - scope level ' + str(self.scope_level))
 
-        current_entry = ScopeTableEntry(self.scope_level, parent, None, current_node)
+        current_entry = ScopeTableEntry(self.scope_level, parent, None, current_node,None)
         # print('Instantiated current entry')
         if current_node is not None and current_node.has_children():
             # print('Current node has children')
@@ -950,6 +966,8 @@ class Analyst:
                 child_entries.append(self.recursive_scope_analysis(child_node, current_node))
                 self.scope_level -= 1
             current_entry.update_children(child_entries)
+        elif current_node is not None and type(current_node.node_contents) is not list:
+            current_entry.set_text(current_node.node_contents)
         print(current_entry)
         return current_entry
 
@@ -1028,7 +1046,7 @@ class Analyst:
                     new_var.set_array(True)
                     if child_node.node_contents[1].node_class == NT_TYP:
                         new_var.set_type(self.convert_types(child_node.node_contents[1].node_class))
-                        new_var.set_name(child_node.node_contents[5].node_contents[0].node_contents)
+                        new_var.set_name(child_node.node_contents[2].node_contents[0].node_contents)
                         self.variable_list.append(new_var)
                         for child in node.node_contents:
                             self.check_types(child)
@@ -1064,8 +1082,8 @@ class Analyst:
                     self.check_types(child)
 
             elif node.node_class == NT_BINOP:
-                argument_1 = node.node_contents[3]
-                argument_2 = node.node_contents[5]
+                argument_1 = node.node_contents[1]
+                argument_2 = node.node_contents[2]
                 name_1 = ''
                 type_1 = ''
                 name_2 = ''
@@ -1080,10 +1098,8 @@ class Analyst:
                 if type_1 != type_2:
                     print('Lack of value error! ' + name_1)
                     quit()
-
-
-
-
+                else:
+                    self.check_types(child)
 
         for variable in self.variable_list:
             if variable.used == False and variable.name != 'binop':
@@ -1095,6 +1111,7 @@ class Analyst:
                 quit()
 
         print(self.variable_list)
+        return self.variable_list
 
 
 class VariableItem:
@@ -1102,6 +1119,7 @@ class VariableItem:
     type = None
     used = False
     array = False
+    value = None
 
     def __repr__(self):
         f'{self.name}, {self.type}, Used? {self.used}, Array? {self.array}'
@@ -1117,6 +1135,244 @@ class VariableItem:
 
     def set_array(self, is_array):
         self.array = is_array
+
+
+# Types for reference:
+# N - Numbers
+# NN - Non-negative numbers
+# B - Booleans
+# T - True booleans
+# F - False booleans
+# S - Strings
+# U - Unknown
+# M - Mixed
+
+class Vtable_node:
+    var_name = ''
+    var_id = ''
+    var_value = ''
+    var_type = ''
+
+class Ftable_node:
+    function_name = ''
+    function_id = ''
+    function_type = ''
+    function_arg1 = None
+    function_arg2 = None
+
+class Vtable:
+    def __init__(self):
+        self.variable_list = []
+
+    def add_variable(self, variable):
+        self.variable_list.append(variable)
+
+    def find_variable(self, variable_name):
+        for variable in self.variable_list:
+            if variable.var_name == variable_name:
+                return variable
+
+        return None
+
+class Ftable:
+    def __init__(self):
+        self.function_list = []
+        self.performs = None
+
+    def add_function(self, function):
+        self.function_list.append(function)
+
+    def find_function(self, function_name):
+        for function in self.function_list:
+            if function.function_name == function_name:
+                return function
+
+        return None
+
+class AstIntermediateGenerator:
+    parent_node = None
+    vtable = Vtable()
+    ftable = Ftable()
+
+    def __init__(self, parent_node):
+        self.parent_node = parent_node
+        self.v_recursive_level = 0
+        self.f_id = 0
+
+    def generate_vtable(self):
+        self.generate_vtable_recursive(self.parent_node)
+
+    def generate_vtable_recursive(self):
+        for node in self.parent_node.node_contents:
+            # pass 1 - find all declarations
+            if node.node_class == NT_VARDECL:
+                new_var = Vtable_node()
+                child_node = node.node_contents[0]
+                if child_node.node_contents[0].node_class == NT_TYP:
+                    # getting type from further down declaration
+                    new_var.variable_type = \
+                        self.convert_types(child_node.node_contents[0].node_class,
+                                           child_node.node_contents[0].node_contents)
+                    # getting name from further down declaration
+                    new_var.variable_name = child_node.node_contents[1].node_contents[0].node_contents
+                    new_var.variable_value = child_node.node_contents[1].node_contents[0].node_contents
+                    new_var.variable_id = self.v_recursive_level
+                    self.v_recursive_level += 1
+                    self.vtable.add(new_var)
+                    if node.has_children():
+                        for child in node.node_contents:
+                            self.generate_vtable_recursive(child)
+            elif node.node_class == NT_ASSIGN:
+                if node.node_contents[0].node_contents == 'output':
+                    # PRINT function
+                    pass
+                elif node.node_contents[0].node_type == NT_USERDEFINEDNAME:
+                    # variable assignment
+                    table_entry = self.ftable.find_function(node.node_contents[0].node_contents)
+                    if table_entry is not None:
+                        table_entry.variable_value = node.node_contents[2].node_contents
+                        self.generate_vtable_recursive(child)
+                    else:
+                        print('Some weirdness beyond my comprehension is happening with the vtable -'
+                              ' looking for nonexistent entry, probably possible to reach here')
+                        quit()
+            if node.has_children():
+                for child in node.node_contents:
+                    self.generate_vtable_recursive(child)
+            else:
+                return
+
+    def generate_ftable(self):
+        self.generate_ftable_recursive(self.parent_node)
+
+    FT_UNOP_NOT = 'ft_unop_not'
+    FT_UNOP_INPUT = 'ft_unop_input'
+
+    FT_BINOP_PLUS = 'ft_binop_+'
+    FT_BINOP_MINUS = 'ft_binop_-'
+    FT_BINOP_TIMES = 'ft_binop_*'
+    FT_BINOP_AND = 'ft_binop-&'
+    FT_BINOP_OR = 'ft_binop-|'
+    FT_BINOP_EQ = 'ft_binop-=='
+    FT_BINOP_LARGER = 'ft_binop->'
+
+    FT_LOOP_DO = 'loop_do'
+    FT_LOOP_WHILE = 'loop_while'
+    FT_BRANCH = 'branch'
+
+    def generate_ftable_recursive(self, parent_node):
+        for child_node in parent_node.node_contents:
+            new_function = Ftable_node()
+            if child_node.node_type == NT_BRANCH:
+                pass
+            if child_node.node_type == NT_ALGORITHM:
+                if child_node.node_contents[0].node_type == NT_LOOP:
+                    if child_node.node_contents[1].node_contents == 'while' or child_node.node_contents[1].node_contents == 'do':
+                        new_function.function_type = self.FT_LOOP_WHILE
+                        new_function.performs(self.generate_ftable_recursive(child_node))
+                    elif child_node.node_contents[1].node_contents == 'if':
+                        new_function.function_type = self.FT_BRANCH
+                        new_function.performs(self.generate_ftable_recursive(child_node))
+
+                arg_var_1 = self.vtable.find_variable(child_node.node_contents[3].node_contents[0].node_contents)
+                arg_var_2 = self.vtable.find_variable(child_node.node_contents[3].node_contents[0].node_contents)
+                new_function.function_arg1 = arg_var_1
+                new_function.function_arg2 = arg_var_2
+
+            elif child_node.node_type == NT_UNOP:
+                if child_node.node_contents[0].node_contents == 'input':
+                    new_function.type = self.FT_UNOP_INPUT
+                elif child_node.node_contents[0].node_contents == 'not':
+                    new_function.type = self.FT_UNOP_NOT
+
+                # add argument
+                arg_var = self.vtable.find_variable(child_node.node_contents[1].node_contents[0])
+                new_function.function_arg1 = arg_var
+            elif child_node.node_type == NT_BINOP:
+                if child_node.node_contents[0].node_contents == 'add':
+                    new_function.type = self.FT_BINOP_PLUS
+                elif child_node.node_contents[0].node_contents == 'sub':
+                    new_function.type = self.FT_BINOP_MINUS
+                elif child_node.node_contents[0].node_contents == 'mult':
+                    new_function.type = self.FT_BINOP_TIMES
+                elif child_node.node_contents[0].node_contents == 'and':
+                    new_function.type = self.FT_BINOP_AND
+                elif child_node.node_contents[0].node_contents == 'or':
+                    new_function.type = self.FT_BINOP_OR
+                elif child_node.node_contents[0].node_contents == 'eq':
+                    new_function.type = self.FT_BINOP_EQ
+                elif child_node.node_contents[0].node_contents == 'larger':
+                    new_function.type = self.FT_BINOP_LARGER
+
+                # add arguments
+                arg_var_1 = self.vtable.find_variable(child_node.node_contents[1].node_contents[0])
+                arg_var_2 = self.vtable.find_variable(child_node.node_contents[2].node_contents[0])
+                new_function.function_arg1 = arg_var_1
+                new_function.function_arg2 = arg_var_2
+
+            new_function.function_id = self.f_id
+            self.f_id += 1
+            new_function.function_name = f'FUNC-{new_function.function_id}/{new_function.function_type}'
+            self.ftable.add_function(new_function)
+            self.generate_ftable_recursive(child_node)
+            return new_function
+
+    def generate_code(self):
+        print('VTABLE:')
+        print(self.vtable)
+
+
+        print('FTABLE:')
+        print(self.ftable)
+
+
+        basic_code = ''
+
+        for variable in self.vtable.variable_list:
+            if variable.var_type == 'S':
+                basic_code += 'LET $' + variable.var_name + ' = ' + variable.var_value
+            else:
+                basic_code += 'LET ' + variable.var_name + ' = ' + variable.var_value
+
+        for function in self.ftable.function_list:
+            if function.function_type == self.FT_LOOP_WHILE:
+                basic_code += f'if UNOP then GOSUB {function}'
+            elif function.function_type == self.FT_BINOP_PLUS:
+                basic_code += f'{function.function_arg1.variable_name} + {function.function_arg2.variable_name}\n'
+            elif function.function_type == self.FT_BINOP_MINUS:
+                basic_code += f'{function.function_arg1.variable_name} - {function.function_arg2.variable_name}\n'
+            elif function.function_type == self.FT_BINOP_TIMES:
+                basic_code += f'{function.function_arg1.variable_name} * {function.function_arg2.variable_name}\n'
+            elif function.function_type == self.FT_BINOP_LARGER:
+                basic_code += f'{function.function_arg1.variable_name} > {function.function_arg2.variable_name}\n'
+            elif function.function_type == self.FT_BINOP_EQ:
+                basic_code += f'{function.function_arg1.variable_name} = {function.function_arg2.variable_name}\n'
+
+
+
+        basic_code += 'END\n'
+        basic_code += 'STOP'
+
+        text_file = open('data.txt', 'w')
+        text_file.write(basic_code)
+        text_file.close()
+
+        os.startfile('data.txt')
+
+
+    def convert_types(self, type, content):
+        if type == TT_NUMBER:
+            if content.contains('-'):
+                return 'N'
+            else:
+                return 'NN'
+        if type == 'boolean':
+            if content == 'true':
+                return 'BT'
+            else:
+                return 'BF'
+        if type == TT_SHORTSTRING:
+            return 'S'
 
 # File reading functionality implementation
 class FileReader:
